@@ -15,6 +15,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+
   if (request.type === "CHAT") {
     fetch("http://localhost:8000/chat", {
       method: "POST",
@@ -31,3 +32,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
+

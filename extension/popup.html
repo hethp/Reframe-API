@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Reframe</title>
   <link rel="stylesheet" href="popup.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -47,9 +49,14 @@
           <option value="Gen X">Gen X</option>
           <option value="Boomer">Boomer</option>
         </select>
-        
+
         <div id="summary-content" class="summary-box">
           <p id="summary-text" class="fade-in"></p>
+        </div>
+
+        <div class="reframe-actions">
+          <button id="reframe-page-btn" class="action-btn reframe-btn">🔄 Reframe This Page</button>
+          <button id="restore-page-btn" class="action-btn restore-btn hidden">↩️ Restore Original</button>
         </div>
       </section>
 
@@ -65,7 +72,7 @@
     </div>
 
     <div id="error" class="hidden error-box"></div>
-    
+
     <div id="start-state">
       <button id="analyze-btn" class="primary-btn">Analyze Current Page</button>
     </div>
@@ -73,4 +80,5 @@
 
   <script src="popup.js"></script>
 </body>
+
 </html>

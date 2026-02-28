@@ -176,6 +176,7 @@ class ChatResponse(BaseModel):
     analysis_id: str
     question: str
     reply: str
+    retrieval_method: str = Field(..., description="'rag' if semantic retrieval was used, 'fallback' if raw text was used")
 
 
 class HealthResponse(BaseModel):
@@ -263,6 +264,7 @@ Task 3: Generational Translation
 Here are some words/phrases to translate:
 
 For Gen Alpha (born 2010+):
+These phrases are very slang-heavy and often used in online contexts, so the translation will focus on a casual, conversational tone with popular slang from the late 2010s and early 2020s, with a heavy emphasis on social media and meme culture:
 - "Skibidi rizz" = having charm or influence, especially in a social context
 - "No cap" = no lie, for real
 - "Cap" = lie or false statement
@@ -283,12 +285,13 @@ For Gen Alpha (born 2010+):
 - "ragebait" = content designed to provoke an angry response
 
 For Gen Z (born 1997-2012):
+These phrases are more slang-heavy and often used in online contexts, so the translation will focus on a casual, conversational tone with popular slang from the late 2010s and early 2020s:
 - "ragebait" = content designed to provoke an angry response
 - "ts pmo" = expression of frustration or annoyance, often in response to something perceived as unfair or irritating
 - "ngl" = not gonna lie
 - "red flags" = warning signs
 - "valid" = true, accurate, or relatable
-- "Ate no crumbs" / "left no crumbs" = Did an excellent job
+- "Ate and left no crumbs" = Did an excellent job
 - "Aura" = Personal vibe or energy
 - "Bet" = Yes, okay, or I agree
 - "GOAT" = Greatest of All Time
@@ -304,8 +307,12 @@ For Gen Z (born 1997-2012):
 - "slimed" = killed, died
 
 For Millennials (born 1981-1996):
+These phrases are more casual and slang-heavy, so the translation will focus on a conversational tone with popular slang from the 2000s and 2010s:
 - "Adulting" = performing responsible adult tasks
 - "#relatable" = resonates with common experiences
+- "#unpopularopinion" = a view that may not be widely accepted
+- "#blessed" = feeling fortunate or grateful
+- "#goals" = aspirational qualities or achievements
 - "FOMO" = Fear Of Missing Out
 - "YOLO" = You Only Live Once
 - "Slay" = do something exceptionally well
@@ -317,6 +324,7 @@ For Millennials (born 1981-1996):
 - "Vibes" = emotional atmosphere or feeling
 
 For Gen X (born 1965-1980):
+These phrases are more straightforward and less slang-heavy, so the translation will focus on clear, direct language with a slightly informal tone:
 - "Here's the deal" = introduction to an explanation
 - "Whatever" = expression of indifference
 - "It is what it is" = acceptance of an unchangeable situation
@@ -326,6 +334,7 @@ For Gen X (born 1965-1980):
 - "Catch you on the flip side" = goodbye
 
 For Boomers (born 1946-1964):
+These phrases are more formal and traditional, so the translation will focus on clear, direct language without slang:
 - "IMPORTANT UPDATE" = phrase to signal critical information
 - "pertinent information" = relevant details
 - "Back in my day" = comparing to the past
@@ -333,12 +342,17 @@ For Boomers (born 1946-1964):
 - "Cutting-edge" = very modern or innovative
 - "Old-school" = traditional, classic
 
-Rewrite the headline and summary into distinct styles using the following examples as a guide:
-- Gen Alpha: "Skibidi rizz on current events. No cap this fanum tax is crazy."
-- Gen Z: "ngl this situation is giving major red flags. valid."
-- Millennial: "Adulting is hard enough, but this news takes the cake. #relatable"
-- Gen X: "Here's the deal on what happened today. Whatever."
-- Boomer: "IMPORTANT UPDATE: Please read this pertinent information regarding today's events."
+Rewrite the headline and summary into distinct styles using the following examples as a guide (feel free to be creative but keep the core meaning and facts intact). Also, diversify the openings and tones for each generation to avoid repetition:
+- Gen Alpha: 
+    - Original headline: "Iran strikes were launched without approval from Congress, deeply dividing lawmakers" = "Chat is this real? Strikes launched against Iran, Congress not in the chat. Major red flags, ngl."
+- Gen Z: 
+    - Original headline: "Iran strikes were launched without approval from Congress, deeply dividing lawmakers" = "It's giving unauthorized strikes. Congress not in the loop, and lawmakers are throwing major shade."
+- Millennial: 
+    - Original headline: "Iran strikes were launched without approval from Congress, deeply dividing lawmakers" = "Adulting fail: Strikes against Iran launched without Congress approval, leaving lawmakers salty and divided."
+- Gen X: 
+    - Original headline: "Iran strikes were launched without approval from Congress, deeply dividing lawmakers" = "Here's the deal: Strikes were launched against Iran without Congress's OK, and it's causing a major rift among lawmakers."
+- Boomer: 
+    - Original headline: "Iran strikes were launched without approval from Congress, deeply dividing lawmakers" = "IMPORTANT UPDATE: Strikes against Iran were launched without the approval of Congress, leading to a deep divide among lawmakers. This is a significant development that underscores the importance of adhering to established protocols for military action."
 
 Output JSON Format Required:
 {{

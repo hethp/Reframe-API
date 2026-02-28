@@ -4,22 +4,55 @@ body {
     margin: 0;
     padding: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background-color: #0f172a; /* Slate 900 for modern dark mode */
+    background-color: #0f172a;
+    /* Slate 900 for modern dark mode */
     color: #f8fafc;
     overflow-x: hidden;
 }
 
+/* 1. Base fix for your container (changed 'font: 14px' to 'font-size: 14px') */
 .container {
     padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    font-size: 14px;
+}
+
+/* 2. Specific styles for the translated text in Boomer Mode */
+.boomer-mode #summary-text {
+    font-size: 22px !important;
+    /* Large, readable text */
+    line-height: 1.6;
+    /* Better spacing for older eyes */
+    font-weight: 600;
+    /* Slightly bolder */
+    color: #ffffff;
+    /* High contrast */
+    display: block;
+}
+
+/* 3. Make the box larger and more "classic" looking */
+.boomer-mode .summary-box {
+    padding: 20px;
+    background: rgba(30, 41, 59, 0.9);
+    border-left: 6px solid #2563eb;
+    /* Stronger blue accent */
+    border-radius: 4px;
+    /* Less rounded, more traditional */
+}
+
+/* 4. Optional: Make the labels bigger too so they can find the settings */
+.boomer-mode label,
+.boomer-mode h2 {
+    font-size: 18px;
+    margin-bottom: 10px;
 }
 
 header {
     text-align: center;
     margin-bottom: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 12px;
 }
 
@@ -82,6 +115,7 @@ h2 {
 .bias-meter-container {
     margin-top: 8px;
 }
+
 .bias-labels {
     display: flex;
     justify-content: space-between;
@@ -91,6 +125,7 @@ h2 {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+
 .bias-bar-bg {
     width: 100%;
     height: 8px;
@@ -98,15 +133,17 @@ h2 {
     border-radius: 4px;
     position: relative;
 }
+
 .bias-marker {
     position: absolute;
     top: -4px;
-    left: 50%; /* Default 0 */
+    left: 50%;
+    /* Default 0 */
     width: 16px;
     height: 16px;
     background: white;
     border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     transform: translateX(-50%);
     transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -122,6 +159,7 @@ h2 {
 .text-sm {
     font-size: 12px;
 }
+
 .text-gray {
     color: #94a3b8;
     line-height: 1.4;
@@ -240,7 +278,7 @@ h2 {
 .spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid rgba(255,255,255,0.1);
+    border: 3px solid rgba(255, 255, 255, 0.1);
     border-radius: 50%;
     border-top-color: #38bdf8;
     animation: spin 1s ease-in-out infinite;
@@ -248,12 +286,21 @@ h2 {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 #loading {
@@ -269,8 +316,15 @@ h2 {
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
 }
 
 .error-box {
@@ -280,4 +334,45 @@ h2 {
     border-radius: 8px;
     border: 1px solid rgba(239, 68, 68, 0.2);
     font-size: 13px;
+}
+
+/* Reframe/Restore Buttons */
+.reframe-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Inter', sans-serif;
+}
+
+.reframe-btn {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    box-shadow: 0 3px 10px rgba(99, 102, 241, 0.3);
+}
+
+.reframe-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(99, 102, 241, 0.4);
+}
+
+.restore-btn {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.restore-btn:hover {
+    background: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
 }

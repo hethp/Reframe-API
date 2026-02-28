@@ -2,11 +2,13 @@ let currentAnalysis = null;
 let currentUrl = "";
 
 document.addEventListener('DOMContentLoaded', () => {
+    // UI Elements
     const analyzeBtn = document.getElementById('analyze-btn');
     const startState = document.getElementById('start-state');
     const loadingState = document.getElementById('loading');
     const contentState = document.getElementById('content');
     const errorState = document.getElementById('error');
+    const container = document.querySelector(".container");
 
     const biasMarker = document.getElementById('bias-marker');
     const biasLabel = document.getElementById('bias-label');
@@ -19,13 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatSubmit = document.getElementById('chat-submit');
     const chatHistory = document.getElementById('chat-history');
 
+    // --- 1. Analysis Logic ---
     analyzeBtn.addEventListener('click', async () => {
-        // Get current tab URL
         let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tabs.length === 0) return;
         currentUrl = tabs[0].url;
 
-        // Show loading
         startState.classList.add('hidden');
         errorState.classList.add('hidden');
         loadingState.classList.remove('hidden');
@@ -48,36 +49,90 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function displayAnalysis(data) {
-        // Set Bias
+        // Set Bias Marker Position
         const score = data.bias.score; // -100 to 100
-        // map -100 to 100 into 0% to 100%
         const percentage = ((score + 100) / 200) * 100;
         biasMarker.style.left = `${percentage}%`;
         biasLabel.textContent = `${data.bias.label} (${score})`;
         biasExplanation.textContent = data.bias.explanation;
 
-        // Set Summary initially
+        // Set Default Summary
         summaryText.textContent = data.summary;
         generationSelect.value = "summary";
+        container.classList.remove("boomer-mode"); // Reset boomer mode on new analysis
+        restoreBtn.classList.add('hidden');
+        reframeBtn.classList.remove('hidden');
     }
+
+    // --- 2. Translation & Boomer Mode Logic ---
+    const reframeBtn = document.getElementById('reframe-page-btn');
+    const restoreBtn = document.getElementById('restore-page-btn');
 
     generationSelect.addEventListener('change', (e) => {
         const val = e.target.value;
-        summaryText.classList.remove('fade-in');
 
-        // trigger reflow
-        void summaryText.offsetWidth;
+        // Handle Boomer Mode UI Scaling
+        if (val === "Boomer") {
+            container.classList.add("boomer-mode");
+        } else {
+            container.classList.remove("boomer-mode");
+        }
+
+        // Handle Text Content Change
+        summaryText.classList.remove('fade-in');
+        void summaryText.offsetWidth; // trigger reflow for animation
 
         if (val === "summary") {
             summaryText.textContent = currentAnalysis.summary;
         } else {
-            summaryText.textContent = currentAnalysis.translations[val];
+            // Checks if translation exists, fallback to summary if not
+            let translation = currentAnalysis.translations[val] || currentAnalysis.summary;
+            // Safety: if the LLM returned an object instead of a string, flatten it
+            if (typeof translation === 'object' && translation !== null) {
+                translation = Object.values(translation).join(' ');
+            }
+            summaryText.textContent = translation;
         }
 
         summaryText.classList.add('fade-in');
     });
 
-    // Chat logic
+    // --- Reframe Page Button ---
+    reframeBtn.addEventListener('click', async () => {
+        if (!currentAnalysis) return;
+
+        const generation = generationSelect.value;
+        if (generation === "summary") {
+            alert("Select a generation style first!");
+            return;
+        }
+
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) return;
+
+        chrome.tabs.sendMessage(tab.id, {
+            type: "REFRAME_PAGE",
+            generation: generation,
+            translations: currentAnalysis.translations,
+            summary: currentAnalysis.summary,
+        });
+
+        reframeBtn.classList.add('hidden');
+        restoreBtn.classList.remove('hidden');
+    });
+
+    // --- Restore Page Button ---
+    restoreBtn.addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) return;
+
+        chrome.tabs.sendMessage(tab.id, { type: "RESTORE_PAGE" });
+
+        restoreBtn.classList.add('hidden');
+        reframeBtn.classList.remove('hidden');
+    });
+
+    // --- 3. Chat Logic ---
     chatSubmit.addEventListener('click', sendChat);
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendChat();
@@ -90,14 +145,15 @@ document.addEventListener('DOMContentLoaded', () => {
         appendChat(text, 'user');
         chatInput.value = '';
 
-        // Add loading indicator
         const loadingId = 'loading-' + Date.now();
         appendChat('...', 'ai', loadingId);
 
         chrome.runtime.sendMessage(
             { type: "CHAT", url: currentUrl, message: text },
             (response) => {
-                document.getElementById(loadingId)?.remove();
+                const loader = document.getElementById(loadingId);
+                if (loader) loader.remove();
+
                 if (response && response.success && response.data.reply) {
                     appendChat(response.data.reply, 'ai');
                 } else {
