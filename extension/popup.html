@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reframe</title>
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Reframe</h1>
+      <p class="subtitle">Real News, Your Way</p>
+    </header>
+
+    <div id="loading" class="hidden">
+      <div class="spinner"></div>
+      <p>Analyzing article...</p>
+    </div>
+
+    <div id="content" class="hidden">
+      <!-- Bias Meter -->
+      <section class="card">
+        <h2>Bias Analysis</h2>
+        <div class="bias-meter-container">
+          <div class="bias-labels">
+            <span>Left</span>
+            <span>Neutral</span>
+            <span>Right</span>
+          </div>
+          <div class="bias-bar-bg">
+            <div id="bias-marker" class="bias-marker"></div>
+          </div>
+        </div>
+        <p id="bias-label" class="bias-label-text">Neutral (0)</p>
+        <p id="bias-explanation" class="text-sm text-gray"></p>
+      </section>
+
+      <!-- Generations Toggle -->
+      <section class="card generation-section">
+        <label for="generation-select">Translate Style:</label>
+        <select id="generation-select" class="modern-select">
+          <option value="summary" selected>Neutral Summary</option>
+          <option value="Gen Alpha">Gen Alpha</option>
+          <option value="Gen Z">Gen Z</option>
+          <option value="Millennial">Millennial</option>
+          <option value="Gen X">Gen X</option>
+          <option value="Boomer">Boomer</option>
+        </select>
+        
+        <div id="summary-content" class="summary-box">
+          <p id="summary-text" class="fade-in"></p>
+        </div>
+      </section>
+
+      <!-- Follow up Chat -->
+      <section class="card chat-section">
+        <h2>Follow-up Chatter</h2>
+        <div id="chat-history" class="chat-history"></div>
+        <div class="chat-input-container">
+          <input type="text" id="chat-input" placeholder="Ask about this article...">
+          <button id="chat-submit">Send</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="error" class="hidden error-box"></div>
+    
+    <div id="start-state">
+      <button id="analyze-btn" class="primary-btn">Analyze Current Page</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
