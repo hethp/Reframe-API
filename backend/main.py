@@ -9,14 +9,48 @@ from pydantic import BaseModel
 from typing import Optional, Dict
 from dotenv import load_dotenv
 
-import google.generativeai as genai
+from google import genai
 
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+# Configure Gemini with key rotation
+# Add keys as comma-separated in .env: GEMINI_API_KEYS=key1,key2,key3,key4
+# Falls back to single GEMINI_API_KEY if GEMINI_API_KEYS is not set
+_keys_str = os.getenv("GEMINI_API_KEYS", os.getenv("GEMINI_API_KEY", ""))
+API_KEYS = [k.strip() for k in _keys_str.split(",") if k.strip()]
+current_key_index = 0
+MODEL_ID = "gemini-2.5-flash"
+
+def get_client():
+    """Get a genai client with the current API key."""
+    return genai.Client(api_key=API_KEYS[current_key_index])
+
+def call_gemini(prompt: str) -> str:
+    """Call Gemini with automatic key rotation on rate limit errors."""
+    global current_key_index
+    attempts = 0
+    last_error = None
+
+    while attempts < len(API_KEYS):
+        try:
+            client = get_client()
+            response = client.models.generate_content(
+                model=MODEL_ID,
+                contents=prompt
+            )
+            return response.text
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                last_error = e
+                current_key_index = (current_key_index + 1) % len(API_KEYS)
+                attempts += 1
+                print(f"Key {current_key_index} rate limited, rotating to key {current_key_index + 1}/{len(API_KEYS)}")
+            else:
+                raise e
+
+    raise Exception(f"All {len(API_KEYS)} API keys exhausted. Last error: {last_error}")
 
 # In-memory article store (replaces ChromaDB to avoid C++ build issues)
 article_store: Dict[str, str] = {}
@@ -70,6 +104,12 @@ Task 2: Neutral Summarization
 Strip all polarized language to output a purely factual, unbiased summary (approx 3 sentences).
 
 Task 3: Generational Translation
+
+Here are some words/phrases to translate:
+- "Skibidi rizz" = having charm or influence, especially in a social context
+- "No cap" = no lie, for real
+- "Fanum tax" = a humorous term for an unavoidable cost or consequence
+
 Rewrite the headline and summary into distinct styles using the following examples as a guide:
 - Gen Alpha: "Skibidi rizz on current events. No cap this fanum tax is crazy."
 - Gen Z: "ngl this situation is giving major red flags. valid."
@@ -95,10 +135,8 @@ Output JSON Format Required:
 }}
 """
     try:
-        response = model.generate_content(prompt)
+        content = call_gemini(prompt)
         # Parse JSON from response
-        # Sometimes the model still outputs markdown ```json
-        content = response.text
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
@@ -106,8 +144,10 @@ Output JSON Format Required:
             
         result = json.loads(content)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM processing failed: {str(e)}\nRaw Response: {response.text if 'response' in locals() else 'None'}")
+        raise HTTPException(status_code=500, detail=f"LLM processing failed: {str(e)}")
 
 @app.post("/process-news")
 async def process_news(req: ProcessRequest):
@@ -155,8 +195,8 @@ Context: "{context[:4000]}"
 
 Question: "{req.message}"
 """
-    response = model.generate_content(prompt)
-    return {"reply": response.text}
+    reply = call_gemini(prompt)
+    return {"reply": reply}
 
 @app.get("/")
 def read_root():
