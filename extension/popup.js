@@ -9,6 +9,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const contentState = document.getElementById('content');
     const errorState = document.getElementById('error');
     const container = document.querySelector(".container");
+    const closeBtn = document.getElementById('close-sidebar');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            // if loaded in an injected iframe, close the sidebar by removing parent div
+            if (window.top && window.top.document) {
+                const sidebar = window.top.document.getElementById('reframe-sidebar');
+                if (sidebar) sidebar.remove();
+            }
+        });
+    }
 
     const biasMarker = document.getElementById('bias-marker');
     const biasLabel = document.getElementById('bias-label');

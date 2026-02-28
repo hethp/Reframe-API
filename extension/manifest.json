@@ -14,9 +14,22 @@
     "<all_urls>"
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Reframe"
   },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sidebar.html",
+        "popup.html",
+        "popup.css",
+        "popup.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   },
