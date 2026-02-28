@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatSubmit = document.getElementById('chat-submit');
     const chatHistory = document.getElementById('chat-history');
 
+    const reframeBtn = document.getElementById('reframe-page-btn');
+    const restoreBtn = document.getElementById('restore-page-btn');
+
     // --- 1. Analysis Logic ---
     analyzeBtn.addEventListener('click', async () => {
         let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -59,23 +62,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set Default Summary
         summaryText.textContent = data.summary;
         generationSelect.value = "summary";
-        container.classList.remove("boomer-mode"); // Reset boomer mode on new analysis
-        restoreBtn.classList.add('hidden');
+
+        // Reset all font modes on new analysis
+        container.classList.remove("boomer-mode", "gen-alpha-mode");
+
+        // Reset reframe buttons
         reframeBtn.classList.remove('hidden');
+        restoreBtn.classList.add('hidden');
     }
 
-    // --- 2. Translation & Boomer Mode Logic ---
-    const reframeBtn = document.getElementById('reframe-page-btn');
-    const restoreBtn = document.getElementById('restore-page-btn');
-
+    // --- 2. Translation & Font Mode Logic ---
     generationSelect.addEventListener('change', (e) => {
         const val = e.target.value;
 
-        // Handle Boomer Mode UI Scaling
+        // Reset all font modes first
+        container.classList.remove("boomer-mode", "gen-alpha-mode");
+
+        // Apply specific font mode
         if (val === "Boomer") {
             container.classList.add("boomer-mode");
-        } else {
-            container.classList.remove("boomer-mode");
+        } else if (val === "Gen Alpha") {
+            container.classList.add("gen-alpha-mode");
         }
 
         // Handle Text Content Change
@@ -85,45 +92,52 @@ document.addEventListener('DOMContentLoaded', () => {
         if (val === "summary") {
             summaryText.textContent = currentAnalysis.summary;
         } else {
-            // Checks if translation exists, fallback to summary if not
+            // Use translation if available, fallback to summary
             let translation = currentAnalysis.translations[val] || currentAnalysis.summary;
-            // Safety: if the LLM returned an object instead of a string, flatten it
+
+            // Safety: flatten object responses into text
             if (typeof translation === 'object' && translation !== null) {
                 translation = Object.values(translation).join(' ');
             }
+
             summaryText.textContent = translation;
         }
 
         summaryText.classList.add('fade-in');
     });
 
-    // --- Reframe Page Button ---
+    // --- Reframe Page / Restore Original Logic ---
     reframeBtn.addEventListener('click', async () => {
-        if (!currentAnalysis) return;
-
         const generation = generationSelect.value;
-        if (generation === "summary") {
-            alert("Select a generation style first!");
+        if (generation === 'summary') {
+            // Need a generational style selected, not the neutral summary
             return;
         }
 
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = tabs[0];
         if (!tab) return;
 
-        chrome.tabs.sendMessage(tab.id, {
-            type: "REFRAME_PAGE",
-            generation: generation,
-            translations: currentAnalysis.translations,
-            summary: currentAnalysis.summary,
-        });
+        reframeBtn.textContent = '⏳ Reframing...';
+        reframeBtn.disabled = true;
 
-        reframeBtn.classList.add('hidden');
-        restoreBtn.classList.remove('hidden');
+        chrome.tabs.sendMessage(tab.id, { type: "REFRAME_PAGE", generation: generation }, (response) => {
+            reframeBtn.textContent = '🔄 Reframe This Page';
+            reframeBtn.disabled = false;
+
+            if (response && response.success) {
+                reframeBtn.classList.add('hidden');
+                restoreBtn.classList.remove('hidden');
+            } else {
+                const errMsg = response ? response.error : 'Failed to reframe page';
+                console.error('Reframe error:', errMsg);
+            }
+        });
     });
 
-    // --- Restore Page Button ---
     restoreBtn.addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = tabs[0];
         if (!tab) return;
 
         chrome.tabs.sendMessage(tab.id, { type: "RESTORE_PAGE" });

@@ -19,6 +19,15 @@ body {
     font-size: 14px;
 }
 
+/* Comic Sans mode for Gen Alpha */
+.container.gen-alpha-mode {
+  font-family: "Comic Sans MS", "Comic Sans", cursive;
+}
+
+.container.boomer-mode {
+  font-family: "Times New Roman", Times, serif;
+}
+ 
 /* 2. Specific styles for the translated text in Boomer Mode */
 .boomer-mode #summary-text {
     font-size: 22px !important;

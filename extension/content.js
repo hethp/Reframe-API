@@ -2,85 +2,156 @@
  * content.js — Injected into the active tab to modify on-page text and visuals.
  *
  * Listens for messages from popup.js to:
- *   1. Replace headlines/paragraphs with generational translations
- *   2. Add brainrot overlays for Gen Alpha mode
- *   3. Restore the original page
+ *   1. Collect all page paragraphs and send them to the backend for full reframing
+ *   2. Replace each paragraph with its reframed version (preserving direct quotes)
+ *   3. Add generation-specific visual overlays
+ *   4. Restore the original page
  */
 
 let originalElements = []; // Store originals for undo
 let overlayContainer = null;
 
+const API_BASE = "http://localhost:8000";
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === "REFRAME_PAGE") {
-        reframePage(request.generation, request.translations, request.summary);
-        sendResponse({ success: true });
-    }
+  if (request.type === "REFRAME_PAGE") {
+    // Use async flow but keep the message channel open
+    reframePage(request.generation).then((result) => {
+      sendResponse(result);
+    });
+    return true; // Keep message channel open for async response
+  }
 
-    if (request.type === "RESTORE_PAGE") {
-        restorePage();
-        sendResponse({ success: true });
-    }
+  if (request.type === "RESTORE_PAGE") {
+    restorePage();
+    sendResponse({ success: true });
+  }
 });
 
-function reframePage(generation, translations, summary) {
-    // First restore if already reframed
-    restorePage();
+async function reframePage(generation) {
+  // First restore if already reframed
+  restorePage();
 
-    const translatedText = translations[generation] || summary;
+  // --- 1. Collect ALL paragraphs from the page ---
+  const selectors = [
+    "article p",
+    "[class*='article'] p",
+    "[class*='story'] p",
+    "[class*='content'] p",
+    "main p",
+    ".post-body p",
+    "#article-body p",
+  ].join(", ");
 
-    // --- 1. Replace Headlines ---
-    const headlineSelectors = "h1, h2, h3, [class*='headline'], [class*='title'], [data-testid*='headline']";
-    const headlines = document.querySelectorAll(headlineSelectors);
+  let paragraphs = Array.from(document.querySelectorAll(selectors));
 
-    headlines.forEach((el, i) => {
-        if (el.innerText.trim().length > 10 && i < 5) {
-            originalElements.push({ element: el, text: el.innerText, html: el.innerHTML });
-            // Use a portion of the translated text for the headline
-            const headlineText = translatedText.split('.')[0] || translatedText;
-            el.innerText = headlineText;
-            el.style.transition = "all 0.3s ease";
+  // Deduplicate (some selectors may match the same element)
+  const seen = new Set();
+  paragraphs = paragraphs.filter(el => {
+    if (seen.has(el)) return false;
+    seen.add(el);
+    return el.innerText.trim().length > 15; // Skip tiny fragments
+  });
 
-            if (generation === "Gen Alpha") {
-                el.style.color = "#ff6b6b";
-                el.style.textShadow = "0 0 10px rgba(255, 107, 107, 0.5)";
-            } else if (generation === "Boomer") {
-                el.style.fontSize = "1.4em";
-                el.style.fontWeight = "bold";
-                el.style.letterSpacing = "0.5px";
-            }
-        }
+  if (paragraphs.length === 0) {
+    // Fallback: grab all <p> on the page
+    paragraphs = Array.from(document.querySelectorAll("p"))
+      .filter(el => el.innerText.trim().length > 15);
+  }
+
+  // Also collect headlines
+  const headlineSelectors = "h1, h2, h3, [class*='headline'], [class*='title'], [data-testid*='headline']";
+  let headlines = Array.from(document.querySelectorAll(headlineSelectors));
+  const seenH = new Set();
+  headlines = headlines.filter(el => {
+    if (seenH.has(el)) return false;
+    seenH.add(el);
+    return el.innerText.trim().length > 10;
+  });
+
+  // Combine: headlines first, then paragraphs
+  const allElements = [...headlines.slice(0, 5), ...paragraphs];
+  const allTexts = allElements.map(el => el.innerText.trim());
+
+  if (allTexts.length === 0) {
+    return { success: false, error: "No article text found on this page." };
+  }
+
+  // Store originals for undo
+  allElements.forEach(el => {
+    originalElements.push({ element: el, text: el.innerText, html: el.innerHTML });
+  });
+
+  // Show loading state
+  addModeBanner(generation, true);
+
+  // --- 2. Send to backend for full reframing ---
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/reframe-page`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paragraphs: allTexts,
+        generation: generation,
+      }),
     });
 
-    // --- 2. Replace Article Body Paragraphs ---
-    const paragraphs = document.querySelectorAll("article p, [class*='article'] p, [class*='story'] p, main p");
-    const sentences = translatedText.split(/(?<=[.!?])\s+/);
-
-    paragraphs.forEach((el, i) => {
-        if (el.innerText.trim().length > 20 && i < 10) {
-            originalElements.push({ element: el, text: el.innerText, html: el.innerHTML });
-            el.innerText = sentences[i % sentences.length] || translatedText;
-            el.style.transition = "all 0.3s ease";
-        }
-    });
-
-    // --- 3. Generation-specific Visual Overlays ---
-    if (generation === "Gen Alpha") {
-        addBrainrotOverlay();
-    } else if (generation === "Boomer") {
-        addBoomerOverlay();
-    } else if (generation === "Gen Z") {
-        addGenZOverlay();
+    if (!response.ok) {
+      const err = await response.json();
+      console.error("Reframe API error:", err);
+      restorePage();
+      return { success: false, error: err.detail?.error?.message || "API error" };
     }
 
-    // --- 4. Banner showing which mode is active ---
-    addModeBanner(generation);
+    const data = await response.json();
+
+    // --- 3. Replace each element with its reframed version ---
+    data.reframed.forEach((newText, i) => {
+      if (i < allElements.length && newText) {
+        const el = allElements[i];
+        el.innerText = newText;
+        el.style.transition = "all 0.3s ease";
+
+        // Generation-specific text styles
+        if (generation === "Gen Alpha") {
+          el.style.fontFamily = "'Comic Sans MS', cursive";
+        } else if (generation === "Boomer") {
+          el.style.fontFamily = "Georgia, 'Times New Roman', serif";
+          el.style.fontSize = "1.1em";
+          el.style.lineHeight = "1.7";
+        }
+      }
+    });
+
+    // --- 4. Update banner to show completion ---
+    const banner = document.getElementById("reframe-banner");
+    if (banner) {
+      banner.remove();
+    }
+    addModeBanner(generation, false);
+
+    // --- 5. Add visual overlays ---
+    if (generation === "Gen Alpha") {
+      addBrainrotOverlay();
+    } else if (generation === "Boomer") {
+      addBoomerOverlay();
+    } else if (generation === "Gen Z") {
+      addGenZOverlay();
+    }
+
+    return { success: true, count: data.count };
+  } catch (err) {
+    console.error("Reframe failed:", err);
+    restorePage();
+    return { success: false, error: err.message };
+  }
 }
 
 function addBrainrotOverlay() {
-    overlayContainer = document.createElement("div");
-    overlayContainer.id = "reframe-overlay";
-    overlayContainer.innerHTML = `
+  overlayContainer = document.createElement("div");
+  overlayContainer.id = "reframe-overlay";
+  overlayContainer.innerHTML = `
     <style>
       #reframe-overlay {
         pointer-events: none;
@@ -119,30 +190,29 @@ function addBrainrotOverlay() {
     </style>
     <div class="brainrot-watermark">🧠💀 brainrot mode activated 💀🧠</div>
   `;
-    document.body.appendChild(overlayContainer);
+  document.body.appendChild(overlayContainer);
 
-    // Spawn floating emojis
-    const emojis = ["💀", "🗿", "🧠", "😭", "🔥", "💅", "✨", "🤡", "👁️", "⚡"];
-    for (let i = 0; i < 12; i++) {
-        setTimeout(() => {
-            if (!overlayContainer) return;
-            const emojiEl = document.createElement("span");
-            emojiEl.className = "brainrot-emoji";
-            emojiEl.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-            emojiEl.style.left = Math.random() * 90 + "%";
-            emojiEl.style.animationDuration = (3 + Math.random() * 3) + "s";
-            emojiEl.style.animationDelay = (Math.random() * 0.5) + "s";
-            overlayContainer.appendChild(emojiEl);
-            // Clean up after animation
-            setTimeout(() => emojiEl.remove(), 7000);
-        }, i * 500);
-    }
+  // Spawn floating emojis
+  const emojis = ["💀", "🗿", "🧠", "😭", "🔥", "💅", "✨", "🤡", "👁️", "⚡"];
+  for (let i = 0; i < 12; i++) {
+    setTimeout(() => {
+      if (!overlayContainer) return;
+      const emojiEl = document.createElement("span");
+      emojiEl.className = "brainrot-emoji";
+      emojiEl.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      emojiEl.style.left = Math.random() * 90 + "%";
+      emojiEl.style.animationDuration = (3 + Math.random() * 3) + "s";
+      emojiEl.style.animationDelay = (Math.random() * 0.5) + "s";
+      overlayContainer.appendChild(emojiEl);
+      setTimeout(() => emojiEl.remove(), 7000);
+    }, i * 500);
+  }
 }
 
 function addGenZOverlay() {
-    overlayContainer = document.createElement("div");
-    overlayContainer.id = "reframe-overlay";
-    overlayContainer.innerHTML = `
+  overlayContainer = document.createElement("div");
+  overlayContainer.id = "reframe-overlay";
+  overlayContainer.innerHTML = `
     <style>
       .genz-vibe {
         position: fixed;
@@ -162,13 +232,13 @@ function addGenZOverlay() {
     </style>
     <div class="genz-vibe">✨ it's giving reframed ✨</div>
   `;
-    document.body.appendChild(overlayContainer);
+  document.body.appendChild(overlayContainer);
 }
 
 function addBoomerOverlay() {
-    overlayContainer = document.createElement("div");
-    overlayContainer.id = "reframe-overlay";
-    overlayContainer.innerHTML = `
+  overlayContainer = document.createElement("div");
+  overlayContainer.id = "reframe-overlay";
+  overlayContainer.innerHTML = `
     <style>
       .boomer-notice {
         position: fixed;
@@ -187,27 +257,26 @@ function addBoomerOverlay() {
     </style>
     <div class="boomer-notice">📰 ENHANCED READABILITY MODE ACTIVE</div>
   `;
-    document.body.appendChild(overlayContainer);
+  document.body.appendChild(overlayContainer);
 
-    // Increase font size globally for boomer mode
-    document.body.style.fontSize = "1.15em";
-    document.body.style.lineHeight = "1.8";
+  document.body.style.fontSize = "1.15em";
+  document.body.style.lineHeight = "1.8";
 }
 
-function addModeBanner(generation) {
-    const colors = {
-        "Gen Alpha": { bg: "#ff6b6b", text: "🧠 BRAINROT MODE" },
-        "Gen Z": { bg: "#818cf8", text: "✨ GEN Z MODE" },
-        "Millennial": { bg: "#f59e0b", text: "💅 MILLENNIAL MODE" },
-        "Gen X": { bg: "#6b7280", text: "🤷 GEN X MODE" },
-        "Boomer": { bg: "#1a365d", text: "📰 BOOMER MODE" },
-    };
+function addModeBanner(generation, isLoading = false) {
+  const colors = {
+    "Gen Alpha": { bg: "#ff6b6b", text: "🧠 BRAINROT MODE", loadText: "🧠 Reframing page with brainrot..." },
+    "Gen Z": { bg: "#818cf8", text: "✨ GEN Z MODE", loadText: "✨ Reframing page for Gen Z..." },
+    "Millennial": { bg: "#f59e0b", text: "💅 MILLENNIAL MODE", loadText: "💅 Reframing page for Millennials..." },
+    "Gen X": { bg: "#6b7280", text: "🤷 GEN X MODE", loadText: "🤷 Reframing page for Gen X..." },
+    "Boomer": { bg: "#1a365d", text: "📰 BOOMER MODE", loadText: "📰 Reframing page for Boomers..." },
+  };
 
-    const config = colors[generation] || { bg: "#333", text: "REFRAMED" };
+  const config = colors[generation] || { bg: "#333", text: "REFRAMED", loadText: "Reframing..." };
 
-    const banner = document.createElement("div");
-    banner.id = "reframe-banner";
-    banner.style.cssText = `
+  const banner = document.createElement("div");
+  banner.id = "reframe-banner";
+  banner.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
@@ -224,36 +293,36 @@ function addModeBanner(generation) {
     letter-spacing: 1px;
     transition: all 0.3s ease;
   `;
-    banner.textContent = config.text;
-    document.body.appendChild(banner);
-
-    // Push page content down
-    document.body.style.marginTop = "36px";
+  banner.textContent = isLoading ? config.loadText : config.text;
+  document.body.appendChild(banner);
+  document.body.style.marginTop = "36px";
 }
 
 function restorePage() {
-    // Restore original text
-    originalElements.forEach(({ element, html }) => {
-        element.innerHTML = html;
-        element.style.color = "";
-        element.style.textShadow = "";
-        element.style.fontSize = "";
-        element.style.fontWeight = "";
-        element.style.letterSpacing = "";
-    });
-    originalElements = [];
+  // Restore original text and styles
+  originalElements.forEach(({ element, html }) => {
+    element.innerHTML = html;
+    element.style.color = "";
+    element.style.textShadow = "";
+    element.style.fontSize = "";
+    element.style.fontWeight = "";
+    element.style.letterSpacing = "";
+    element.style.fontFamily = "";
+    element.style.lineHeight = "";
+  });
+  originalElements = [];
 
-    // Remove overlays
-    const overlay = document.getElementById("reframe-overlay");
-    if (overlay) overlay.remove();
-    overlayContainer = null;
+  // Remove overlays
+  const overlay = document.getElementById("reframe-overlay");
+  if (overlay) overlay.remove();
+  overlayContainer = null;
 
-    // Remove banner
-    const banner = document.getElementById("reframe-banner");
-    if (banner) banner.remove();
+  // Remove banner
+  const banner = document.getElementById("reframe-banner");
+  if (banner) banner.remove();
 
-    // Reset body styles
-    document.body.style.marginTop = "";
-    document.body.style.fontSize = "";
-    document.body.style.lineHeight = "";
+  // Reset body styles
+  document.body.style.marginTop = "";
+  document.body.style.fontSize = "";
+  document.body.style.lineHeight = "";
 }

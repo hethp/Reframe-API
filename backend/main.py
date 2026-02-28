@@ -1,4 +1,4 @@
-import os
+ import os
 import re
 import json
 import hashlib
@@ -260,6 +260,8 @@ Task 2: Neutral Summarization
 Strip all polarized language to output a purely factual, unbiased summary (approx 3 sentences).
 
 Task 3: Generational Translation
+
+Important: Be sensitive to topics that may involve victims, violence, or trauma. In such cases, prioritize empathy and respect in all translations, and avoid slang that could be perceived as insensitive.
 
 Here are some words/phrases to translate:
 
@@ -625,6 +627,106 @@ Question: \"{req.message}\"
         "question": req.message,
         "reply": reply,
     }
+
+
+# ---------------------------------------------------------------------------
+# Full-Page Reframe Endpoint
+# ---------------------------------------------------------------------------
+
+
+class ReframePageRequest(BaseModel):
+    """Request body for full-page reframing."""
+    paragraphs: List[str] = Field(..., description="Array of paragraph texts from the page")
+    generation: str = Field(..., description="Target generation style", examples=["Gen Alpha"])
+
+
+class ReframePageResponse(BaseModel):
+    generation: str
+    reframed: List[str] = Field(..., description="Reframed paragraphs in the same order")
+    count: int
+
+
+@app.post(
+    "/api/v1/reframe-page",
+    response_model=ReframePageResponse,
+    tags=["Analyses"],
+    summary="Reframe full page text into a generational style",
+)
+async def reframe_page(req: ReframePageRequest):
+    """
+    Takes an array of paragraph texts extracted from a web page and rewrites
+    each one in the chosen generational style.
+
+    **Direct quotes** (text inside quotation marks) are preserved exactly as-is.
+    Each paragraph is reframed individually to maintain the article's structure.
+    """
+    if not req.paragraphs:
+        raise HTTPException(status_code=422, detail={
+            "error": {"code": 422, "type": "validation_error",
+                      "message": "paragraphs array must not be empty"}
+        })
+
+    # Build a numbered list so Gemini can return results in order
+    numbered = "\n".join(
+        f"[{i}] {p}" for i, p in enumerate(req.paragraphs)
+    )
+
+    prompt = f"""You are a linguist rewriting text in the "{req.generation}" generational style.
+
+CRITICAL RULES:
+1. Rewrite EVERY numbered paragraph below in the {req.generation} style.
+2. NEVER change direct quotes — any text inside quotation marks ("..." or '...') must stay EXACTLY the same.
+3. Keep the same factual meaning and information.
+4. Return ONLY a valid JSON array of strings, one per paragraph, in the same order.
+5. Do NOT include markdown formatting like ```json.
+
+Paragraphs to rewrite:
+{numbered}
+
+Return a JSON array like: ["reframed paragraph 0", "reframed paragraph 1", ...]
+"""
+
+    try:
+        content = call_gemini(prompt)
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.replace("```", "").strip()
+
+        reframed = json.loads(content)
+
+        # Ensure we got a list of strings
+        if not isinstance(reframed, list):
+            reframed = [str(reframed)]
+
+        # Normalize: flatten any non-string items
+        reframed = [
+            " ".join(v.values()) if isinstance(v, dict) else str(v)
+            for v in reframed
+        ]
+
+        # Pad or trim to match input length
+        while len(reframed) < len(req.paragraphs):
+            reframed.append(req.paragraphs[len(reframed)])
+        reframed = reframed[:len(req.paragraphs)]
+
+        return {
+            "generation": req.generation,
+            "reframed": reframed,
+            "count": len(reframed),
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail={
+            "error": {"code": 502, "type": "llm_parse_error",
+                      "message": "LLM returned invalid JSON for page reframe"}
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={
+            "error": {"code": 500, "type": "llm_error",
+                      "message": f"Page reframe failed: {str(e)}"}
+        })
 
 
 # ---------------------------------------------------------------------------
