@@ -27,6 +27,11 @@ body {
 .container.boomer-mode {
   font-family: "Times New Roman", Times, serif;
 }
+
+.boomer-mode {
+  font-family: "Times New Roman", serif;
+  filter: grayscale(100%) contrast(110%) brightness(95%);
+}
  
 /* 2. Specific styles for the translated text in Boomer Mode */
 .boomer-mode #summary-text {

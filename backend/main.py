@@ -1,4 +1,4 @@
- import os
+import os
 import re
 import json
 import hashlib
@@ -69,6 +69,8 @@ def call_gemini(prompt: str) -> str:
 # ---------------------------------------------------------------------------
 # Stores analyses keyed by a short hash ID
 analyses_store: Dict[str, dict] = {}
+# Stores reframed page results keyed by hash of (paragraphs + generation)
+reframe_cache: Dict[str, dict] = {}
 
 
 def _make_id(url: str) -> str:
@@ -287,6 +289,7 @@ These phrases are very slang-heavy and often used in online contexts, so the tra
 - "ragebait" = content designed to provoke an angry response
 
 For Gen Z (born 1997-2012):
+CRITICAL STYLE RULE: write in lowercase with auto-capitalization OFF (unless proper nouns like countries or names require capitalization. also leave direct quotes with original capitalization).
 These phrases are more slang-heavy and often used in online contexts, so the translation will focus on a casual, conversational tone with popular slang from the late 2010s and early 2020s:
 - "ragebait" = content designed to provoke an angry response
 - "ts pmo" = expression of frustration or annoyance, often in response to something perceived as unfair or irritating
@@ -644,6 +647,7 @@ class ReframePageResponse(BaseModel):
     generation: str
     reframed: List[str] = Field(..., description="Reframed paragraphs in the same order")
     count: int
+    cached: bool = Field(False, description="Whether the result was served from cache")
 
 
 @app.post(
@@ -665,6 +669,16 @@ async def reframe_page(req: ReframePageRequest):
             "error": {"code": 422, "type": "validation_error",
                       "message": "paragraphs array must not be empty"}
         })
+
+    # --- Cache lookup ---
+    cache_key = hashlib.sha256(
+        (req.generation + "||" + "|||".join(req.paragraphs)).encode()
+    ).hexdigest()[:16]
+
+    if cache_key in reframe_cache:
+        cached = reframe_cache[cache_key]
+        print(f"Reframe cache HIT for {req.generation} ({cache_key})")
+        return {**cached, "cached": True}
 
     # Build a numbered list so Gemini can return results in order
     numbered = "\n".join(
@@ -688,6 +702,8 @@ Return a JSON array like: ["reframed paragraph 0", "reframed paragraph 1", ...]
 
     try:
         content = call_gemini(prompt)
+        print(f"[REFRAME DEBUG] Raw Gemini response (first 500 chars): {content[:500]}")
+
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
@@ -710,15 +726,23 @@ Return a JSON array like: ["reframed paragraph 0", "reframed paragraph 1", ...]
             reframed.append(req.paragraphs[len(reframed)])
         reframed = reframed[:len(req.paragraphs)]
 
-        return {
+        result = {
             "generation": req.generation,
             "reframed": reframed,
             "count": len(reframed),
         }
-    except json.JSONDecodeError:
+
+        # Store in cache for future hits
+        reframe_cache[cache_key] = result
+        print(f"Reframe cache STORE for {req.generation} ({cache_key})")
+
+        return {**result, "cached": False}
+    except json.JSONDecodeError as e:
+        print(f"[REFRAME ERROR] JSON parse failed: {e}")
+        print(f"[REFRAME ERROR] Content was: {content[:1000]}")
         raise HTTPException(status_code=502, detail={
             "error": {"code": 502, "type": "llm_parse_error",
-                      "message": "LLM returned invalid JSON for page reframe"}
+                      "message": f"LLM returned invalid JSON for page reframe. Preview: {content[:200]}"}
         })
     except HTTPException:
         raise

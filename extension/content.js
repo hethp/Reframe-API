@@ -11,6 +11,9 @@
 let originalElements = []; // Store originals for undo
 let overlayContainer = null;
 
+// Client-side reframe cache: key = "<pageURL>||<generation>", value = reframed array
+const reframeClientCache = new Map();
+
 const API_BASE = "http://localhost:8000";
 
 // Listen for messages from the popup
@@ -83,6 +86,34 @@ async function reframePage(generation) {
     originalElements.push({ element: el, text: el.innerText, html: el.innerHTML });
   });
 
+  // --- Check client-side cache first ---
+  const cacheKey = `${window.location.href}||${generation}`;
+  const cachedResult = reframeClientCache.get(cacheKey);
+
+  if (cachedResult && cachedResult.length === allElements.length) {
+    console.log(`Reframe client cache HIT for ${generation}`);
+    // Apply cached reframed text directly — no network call needed
+    addModeBanner(generation, false);
+    cachedResult.forEach((newText, i) => {
+      if (i < allElements.length && newText) {
+        const el = allElements[i];
+        el.innerText = newText;
+        el.style.transition = "all 0.3s ease";
+        if (generation === "Gen Alpha") {
+          el.style.fontFamily = "'Comic Sans MS', cursive";
+        } else if (generation === "Boomer") {
+          el.style.fontFamily = "Georgia, 'Times New Roman', serif";
+          el.style.fontSize = "1.1em";
+          el.style.lineHeight = "1.7";
+        }
+      }
+    });
+    if (generation === "Gen Alpha") addBrainrotOverlay();
+    else if (generation === "Boomer") addBoomerOverlay();
+    else if (generation === "Gen Z") addGenZOverlay();
+    return { success: true, count: cachedResult.length, cached: true };
+  }
+
   // Show loading state
   addModeBanner(generation, true);
 
@@ -123,6 +154,10 @@ async function reframePage(generation) {
         }
       }
     });
+
+    // --- Store in client-side cache ---
+    reframeClientCache.set(cacheKey, data.reframed);
+    console.log(`Reframe client cache STORE for ${generation}`);
 
     // --- 4. Update banner to show completion ---
     const banner = document.getElementById("reframe-banner");
