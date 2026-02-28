@@ -8,9 +8,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       },
       body: JSON.stringify({ url: request.url })
     })
-    .then(res => res.json())
-    .then(data => sendResponse({ success: true, data: data }))
-    .catch(error => sendResponse({ success: false, error: error.message }));
+      .then(res => res.json())
+      .then(data => sendResponse({ success: true, data: data }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
     // Return true to indicate we will send a response asynchronously
     return true;
   }
@@ -21,11 +21,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ url: request.url, message: request.message })
+      body: JSON.stringify({ url: request.url, message: request.message, generation: request.generation })
     })
-    .then(res => res.json())
-    .then(data => sendResponse({ success: true, data: data }))
-    .catch(error => sendResponse({ success: false, error: error.message }));
+      .then(res => res.json())
+      .then(data => sendResponse({ success: true, data: data }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
     // Return true to indicate we will send a response asynchronously
     return true;
   }

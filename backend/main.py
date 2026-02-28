@@ -65,12 +65,31 @@ def call_gemini(prompt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# In-memory data store
+# In-memory data store + Persistent reframe cache
 # ---------------------------------------------------------------------------
-# Stores analyses keyed by a short hash ID
+# Stores analyses keyed by a short hash ID (in-memory, fast to regenerate)
 analyses_store: Dict[str, dict] = {}
-# Stores reframed page results keyed by hash of (paragraphs + generation)
-reframe_cache: Dict[str, dict] = {}
+
+# Persistent reframe cache — saved to disk so it survives server restarts
+REFRAME_CACHE_FILE = os.path.join(os.path.dirname(__file__), "reframe_cache.json")
+
+def _load_reframe_cache() -> Dict[str, dict]:
+    try:
+        if os.path.exists(REFRAME_CACHE_FILE):
+            with open(REFRAME_CACHE_FILE, "r") as f:
+                return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        pass
+    return {}
+
+def _save_reframe_cache():
+    try:
+        with open(REFRAME_CACHE_FILE, "w") as f:
+            json.dump(reframe_cache, f)
+    except IOError:
+        pass
+
+reframe_cache: Dict[str, dict] = _load_reframe_cache()
 
 
 def _make_id(url: str) -> str:
@@ -165,11 +184,13 @@ class AnalysisListResponse(BaseModel):
 class ChatRequest(BaseModel):
     """Request body for follow-up chat questions."""
     message: str = Field(..., description="Your question about the article.", examples=["What are the key claims in this article?"])
+    generation: Optional[str] = Field("Neutral", description="Generational tone for the response", examples=["Gen Z"])
 
     class Config:
         json_schema_extra = {
             "example": {
-                "message": "What are the key claims in this article?"
+                "message": "What are the key claims in this article?",
+                "generation": "Gen Z"
             }
         }
 
@@ -318,6 +339,7 @@ These phrases are more casual and slang-heavy, so the translation will focus on 
 - "#unpopularopinion" = a view that may not be widely accepted
 - "#blessed" = feeling fortunate or grateful
 - "#goals" = aspirational qualities or achievements
+- "#livelaughlove" = cliché expression of enjoying life
 - "FOMO" = Fear Of Missing Out
 - "YOLO" = You Only Live Once
 - "Slay" = do something exceptionally well
@@ -384,6 +406,14 @@ Output JSON Format Required:
             content = content.replace("```", "").strip()
 
         result = json.loads(content)
+
+        # Normalize translations: Gemini sometimes returns objects instead of strings
+        if "translations" in result and isinstance(result["translations"], dict):
+            for key, val in result["translations"].items():
+                if isinstance(val, dict):
+                    # Flatten {"headline": "...", "summary": "..."} → single string
+                    result["translations"][key] = " ".join(str(v) for v in val.values())
+
         return result
     except json.JSONDecodeError as e:
         raise HTTPException(
@@ -616,10 +646,32 @@ async def chat(analysis_id: str, req: ChatRequest):
 
     context = analyses_store[analysis_id].get("_article_text", "")
 
+    # --- Detect vague / unclear messages ---
+    vague_words = {"what", "huh", "hm", "hmm", "ok", "idk", "wdym", "?", "um", "uh", "eh", "lol", "bruh"}
+    cleaned = req.message.strip().lower().rstrip("?!. ")
+    if cleaned in vague_words or len(cleaned) <= 2:
+        return {
+            "analysis_id": analysis_id,
+            "question": req.message,
+            "reply": "Could you clarify what you're confused about? I can help explain specific parts of the article — just let me know what caught your attention!",
+            "retrieval_method": "clarification",
+        }
+
+    # --- Build generation-aware prompt ---
+    generation = req.generation or "Neutral"
+    tone_instruction = ""
+    if generation != "Neutral":
+        tone_instruction = f"""\nIMPORTANT: Respond in the "{generation}" generational style.
+- Gen Alpha: Use heavy slang (no cap, skibidi, sus, chat is this real, gng, etc.), Comic Sans energy, chaotic fun.
+- Gen Z: Use lowercase, ngl/valid/it's giving/slay/hits different, casual and aesthetic.
+- Millennial: Use #hashtags, adulting, salty, FOMO, YOLO, #relatable, conversational tone.
+- Gen X: Be direct and sarcastic. "Here's the deal", "whatever", "it is what it is". No fluff.
+- Boomer: Be formal, traditional, use complete sentences. "IMPORTANT:", "pertinent information", clear and authoritative.\n"""
+
     prompt = f"""
 You are a helpful assistant answering questions strictly based on the provided news context.
 If the answer is not in the context, say "I don't have enough information from the article to answer that."
-
+{tone_instruction}
 Context: \"{context[:4000]}\"
 
 Question: \"{req.message}\"
@@ -629,6 +681,7 @@ Question: \"{req.message}\"
         "analysis_id": analysis_id,
         "question": req.message,
         "reply": reply,
+        "retrieval_method": "fallback",
     }
 
 
@@ -732,8 +785,9 @@ Return a JSON array like: ["reframed paragraph 0", "reframed paragraph 1", ...]
             "count": len(reframed),
         }
 
-        # Store in cache for future hits
+        # Store in cache for future hits (and persist to disk)
         reframe_cache[cache_key] = result
+        _save_reframe_cache()
         print(f"Reframe cache STORE for {req.generation} ({cache_key})")
 
         return {**result, "cached": False}
@@ -769,7 +823,7 @@ async def legacy_chat(req: dict):
     """Legacy endpoint — redirects to /api/v1/analyses/{id}/chat."""
     url = req.get("url", "")
     analysis_id = _make_id(url)
-    chat_req = ChatRequest(message=req.get("message", ""))
+    chat_req = ChatRequest(message=req.get("message", ""), generation=req.get("generation", "Neutral"))
     return await chat(analysis_id, chat_req)
 
 

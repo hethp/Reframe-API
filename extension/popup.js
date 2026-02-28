@@ -10,14 +10,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorState = document.getElementById('error');
     const container = document.querySelector(".container");
     const closeBtn = document.getElementById('close-sidebar');
+    const minimizeBtn = document.getElementById('minimize-sidebar');
 
+    // Close sidebar — send message to parent (injectSidebar.js)
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            // if loaded in an injected iframe, close the sidebar by removing parent div
-            if (window.top && window.top.document) {
-                const sidebar = window.top.document.getElementById('reframe-sidebar');
-                if (sidebar) sidebar.remove();
-            }
+            window.parent.postMessage('reframe-close', '*');
+        });
+    }
+
+    // Minimize sidebar to floating bubble
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener('click', () => {
+            window.parent.postMessage('reframe-minimize', '*');
         });
     }
 
@@ -158,6 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- 3. Chat Logic ---
+    const chatToneSelect = document.getElementById('chat-tone-select');
+
     chatSubmit.addEventListener('click', sendChat);
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendChat();
@@ -167,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = chatInput.value.trim();
         if (!text) return;
 
+        const chatTone = chatToneSelect.value;
         appendChat(text, 'user');
         chatInput.value = '';
 
@@ -174,13 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
         appendChat('...', 'ai', loadingId);
 
         chrome.runtime.sendMessage(
-            { type: "CHAT", url: currentUrl, message: text },
+            { type: "CHAT", url: currentUrl, message: text, generation: chatTone },
             (response) => {
                 const loader = document.getElementById(loadingId);
                 if (loader) loader.remove();
 
                 if (response && response.success && response.data.reply) {
-                    appendChat(response.data.reply, 'ai');
+                    appendChat(response.data.reply, 'ai', null, chatTone);
                 } else {
                     appendChat('Error analyzing response', 'ai');
                 }
@@ -188,11 +196,28 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
-    function appendChat(message, sender, id = null) {
+    // Font map for generation-specific chat bubbles
+    const chatFonts = {
+        "Gen Alpha": { font: "'Comic Sans MS', cursive", color: "#ff6b6b" },
+        "Gen Z": { font: "-apple-system, sans-serif", color: "#818cf8" },
+        "Millennial": { font: "'Avenir', 'Segoe UI', sans-serif", color: "#f8b4c8" },
+        "Gen X": { font: "'Courier New', monospace", color: "#a0a0a0" },
+        "Boomer": { font: "Georgia, 'Times New Roman', serif", color: "#e8d5a3" },
+    };
+
+    function appendChat(message, sender, id = null, generation = null) {
         const div = document.createElement('div');
         div.className = `chat-bubble ${sender}`;
         div.textContent = message;
         if (id) div.id = id;
+
+        // Apply generation-specific styling to AI bubbles
+        if (sender === 'ai' && generation && chatFonts[generation]) {
+            const style = chatFonts[generation];
+            div.style.fontFamily = style.font;
+            div.style.borderLeft = `3px solid ${style.color}`;
+        }
+
         chatHistory.appendChild(div);
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }

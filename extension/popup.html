@@ -63,6 +63,17 @@
       <!-- Follow up Chat -->
       <section class="card chat-section">
         <h2>Follow-up Chatter</h2>
+        <div class="chat-tone-container">
+          <label for="chat-tone-select">Chat Vibe:</label>
+          <select id="chat-tone-select" class="modern-select chat-tone-select">
+            <option value="Neutral" selected>🎯 Neutral</option>
+            <option value="Gen Alpha">🧠 Gen Alpha</option>
+            <option value="Gen Z">✨ Gen Z</option>
+            <option value="Millennial">💅 Millennial</option>
+            <option value="Gen X">🤷 Gen X</option>
+            <option value="Boomer">📰 Boomer</option>
+          </select>
+        </div>
         <div id="chat-history" class="chat-history"></div>
         <div class="chat-input-container">
           <input type="text" id="chat-input" placeholder="Ask about this article...">
