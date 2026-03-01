@@ -121,6 +121,12 @@ All errors return a consistent JSON structure:
 | `500` | Internal LLM error |
 | `502` | LLM returned unparseable response |
 
+**Extension errors**
+
+If you receive the error `net::ERR_CONNECTION_REFUSED`, the backend server is not running.
+
+Fix the error by starting the API Server: `python -m uvicorn backend.main:app --reload`
+
 **How to Debug Issues (Recommended Workflow)**
 1) Confirm server is running
 2) Test endpoint independently (via API docs or Postman)
