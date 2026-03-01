@@ -12,7 +12,7 @@ The extension works by extracting article text from a webpage, sending it to the
 
 | Layer | Technology |
 |---|---|
-| **Backend** | Python 3.13, [FastAPI](https://fastapi.tiangolo.com/) |
+| **Backend** | Python 3.11, [FastAPI](https://fastapi.tiangolo.com/) |
 | **AI / LLM** | [Google Gemini 2.5 Flash](https://ai.google.dev/) via google-genai SDK |
 | **Web Scraping** | BeautifulSoup, Requests |
 | **Frontend** | Chrome Extension (Manifest V3), HTML/CSS/JS |
