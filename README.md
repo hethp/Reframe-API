@@ -54,16 +54,18 @@ cd Reframe-API
 python -m uvicorn backend.main:app --reload
 ```
 The API is now live at **http://localhost:8000**.
+
 Interative API docs can be found at **http://localhost:8000/docs**
 
 ---
 
 
 ## Chrome Extension Setup
-1. Open Chrome and navigate to `chrome://extensions/`(chrome://extensions/)
+1. Open Chrome and navigate to `chrome://extensions/`
 2. Enable **Developer mode** (top right)
 3. Click **Load unpacked** → select the `extension/` folder
 4. Navigate to any news article and click the Reframe icon
+
 The Reframe extension should now appear in your toolbar.
 
 ---
@@ -73,7 +75,9 @@ The Reframe extension should now appear in your toolbar.
 2. Click the Reframe extension icon
 3. Press “Analyze Current Page”
 4. Choose a translation style: Neutral Summary, Gen Alpha, Gen Z, Millennial, Gen X, Boomer
+
 The page content will be dynamically reframed in the selected style.
+
 The extension also includes a contextual chat tool for article-specific questions, which can be accessed by scrolling to **Follow-Up Chatter**.
 
 ---
@@ -91,9 +95,11 @@ With four keys, you get **80 requests/day** on the free tier (20 RPD per key).
 ---
 
 ## Error Handling
+
 Errors may originate from either the backend API or the Chrome extension. Identifying where the error appears helps diagnose issues quickly.
 
 **Common API Errors**
+
 All errors return a consistent JSON structure:
 
 ```json
