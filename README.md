@@ -2,23 +2,9 @@
 
 > Make news accessible, unbiased, and generationally relatable.
 
-Reframe is a RESTful Web API that analyzes online news articles for bias, summarizes their content, and rewrites them in different generational communication styles (Gen Alpha → Boomer) while preserving the original meaning and key information.
+Reframe is a Chrome extension designed to make news articles easier to understand across different generations. It summarizes article content and translates them into generational styles — from Gen Alpha brainrot to Boomer formal– while preserving the original meaning and key information.
 
-The API is designed for clarity, predictability, and excellent developer experience. It can be fully tested using cURL, Postman, or the built-in interactive Swagger docs.
-
----
-
-## Overview
-
-Modern news consumption is fragmented across generations, each with different language norms and biases in interpretation. The Reframe API bridges this gap by:
-
-* Extracting article content from a URL
-* Analyzing bias and tone
-* Generating summaries
-* Rewriting content in generational styles
-* Supporting conversational follow-up questions about analyzed articles
-
-This provides both educational and practical value for media literacy, accessibility, and audience-aware communication.
+The extension works by extracting article text from a webpage, sending it to the Reframe API for processing, and then dynamically replacing the on-page content with the reframed version in the selected generational style.
 
 ---
 
@@ -39,7 +25,7 @@ This provides both educational and practical value for media literacy, accessibi
 
 | Layer                    | Technology                                 |
 | ------------------------ | ------------------------------------------ |
-| **Backend Framework**    | FastAPI (built on Starlette)               |
+| **Backend Framework**    | FastAPI (built on Starlette), Python 3.11  |
 | **Validation & Schemas** | Pydantic                                   |
 | **Language Model**       | Google Gemini 2.5 Flash (google-genai SDK) |
 | **Web Scraping**         | BeautifulSoup, Requests                    |
