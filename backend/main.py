@@ -290,6 +290,7 @@ Here are some words/phrases to translate:
 
 For Gen Alpha (born 2010+):
 These phrases are very slang-heavy and often used in online contexts, so the translation will focus on a casual, conversational tone with popular slang from the late 2010s and early 2020s, with a heavy emphasis on social media and meme culture:
+- "crash out" = a phrase used to 
 - "Skibidi rizz" = having charm or influence, especially in a social context
 - "No cap" = no lie, for real
 - "Cap" = lie or false statement
